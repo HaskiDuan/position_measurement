@@ -3,6 +3,15 @@ clc;
 close all;
 dbstop if error
 
+% delete(gcp('nocreate'))
+% 
+% CoreNum=4; %设定机器CPU核心数量，我的机器是双核，所以CoreNum=2
+% if parpool('local')<=0 %判断并行计算环境是否已然启动
+% parpool('open','local',CoreNum); %若尚未启动，则启动并行环境
+% else
+% disp('Already initialized'); %说明并行环境已经启动。
+% end
+
 tic
 %%外轮廓大圆与内部空心小圆相比较
 k0 = (93/28)^2;
@@ -12,20 +21,19 @@ I=imread('T73.jpg');
 %% 使用自编的算法把原始的彩色图像转换成灰度图像
 [rows,columns,colors]=size(I);
 gray=rgb2gray(I);
-figure;
-image(gray);hold off
+% figure;
+% image(gray);hold off
 %% 使用自编Otsu函数确定阈值，并将原始灰度图像转换成二值图像
 T0 = graythresh(gray);
 gray = im2bw(gray,T0);
-imshow(gray);
+% imshow(gray);
 %白色是1 黑色是0
 
 %% 使用自编CclByTwopass_NEW2函数对二值图像进行连通域标记
 [gray,array,nlabel,label_count]=CclByTwopass_NEW2(gray);
-figure;
-imagesc(gray);
-set(gca,'FontSize',18);
-hold off
+% figure;
+% imagesc(gray);
+% set(gca,'FontSize',18);
 
 %% 寻找着陆信标对应的连通域的编号
 [target1_ID, target1_pixelnum, target2_ID, target2_pixelnum] = GMS(label_count);  % GMS : global maxium-value select
@@ -42,10 +50,10 @@ target_columns = 0;    % 计算形心
 rows_num = 0;          % 计算形心
 columns_num = 0;       % 计算形心
 
-I=find(gray == target1_ID); %%找到A中所有大于5的元素
-gray1(I)=1;                 %%将A中所有大于5的元素替换为0
-I=find(gray == target2_ID); %%找到A中所有大于5的元素
-gray2(I)=1;                 %%将A中所有大于5的元素替换为0
+I=find(gray == target1_ID); %%找到gray中属于target1的像素点
+gray1(I)=1;                 %%并替换为1
+I=find(gray == target2_ID); %%找到gray中属于target2的像素点
+gray2(I)=1;                 %%并替换为1
 
 
 [x,y]=find(gray==target2_ID);
@@ -53,16 +61,12 @@ target_rows = min(x)+(max(x)-min(x))/2;   % 形心的x坐标
 target_columns =min(y)+(max(y)-min(y))/2;   % 形心的y坐标
 
 %条件2：用于判断参考靶标是否完整地出现在图像平面，并且对1号和2号靶标的区分是正确的
-local_gray_average = 0;     %以形心为中心的3x3小邻域内的点的平均灰度值
-for i = -1:1:1
-    for j = -1:1:1
-        local_gray_average = gray2(target_rows - i, target_columns - j) + local_gray_average;
-    end
-end
-local_gray_average = local_gray_average/9;
+I = gray2(target_rows - 1:target_rows + 1, target_columns - 1:target_columns + 1);
+local_gray_average = sum(sum(I))/9; %以形心为中心的3x3小邻域内的点的平均灰度值
 if (local_gray_average~=0)
     error('着陆靶标不不完全在相机视野内');
 end
+
 % 把带白点的圆的中心白点抹掉
 k = 7;
 width = round(sqrt(double(target2_pixelnum/(k-1))))/2;
@@ -74,8 +78,11 @@ gray2((target_rows - width):(target_rows + width), (target_columns - width):(tar
 gray1 = edge(gray1,'prewitt');
 gray2 = edge(gray2,'prewitt');
 
-figure;imshow(gray1);
-figure;imshow(gray2);
+
+% tic
+% figure;imshow(gray1);
+% figure;imshow(gray2);
+% toc
 %figure,imshow(gray2),hold on
 %plot(target_columns, target_rows, 'x', 'LineWidth', 2, 'Color', 'g'); % 显示出形心
 gray_imshow = zeros(rows, columns, 'uint16');
@@ -85,6 +92,7 @@ figure;imshow(gray_imshow);hold on
 index = 1;
 x0 = zeros(1, 2); y0 = zeros(1, 2); e_a = zeros(1, 2); e_b = zeros(1, 2); theta = zeros(1, 2);
 answer = zeros(5, 2);   % 用于存放拟合得到的系数
+
 while(index <= 2)
     if (index == 1)
         gray = gray1;
@@ -98,19 +106,14 @@ while(index <= 2)
     a31 = 0; a32 = 0; a33 = 0; a34 = 0; a35 = 0; b3 = 0;
     a41 = 0; a42 = 0; a43 = 0; a44 = 0; a45 = 0; b4 = 0;
     a51 = 0; a52 = 0; a53 = 0; a54 = 0; a55 = 0; b5 = 0;
-    boundary_point = zeros(500, 2);
     num = 0;
-    for i = 1:1:rows
-        for j = 1:1:columns
-            if ( gray(i, j) == 1 ) % 表示是着陆靶标的边界轮廓
-                num = num + 1;
-                boundary_point(num,1) = j;
-                boundary_point(num,2) = i;
-            end
-        end
-    end
-   % count = 0;
-    for  i= 1:1:num
+   
+    
+    [I,J] = find(gray == 1);
+    boundary_point = [J,I];
+    
+    % count = 0;
+    for  i= 1:32:length(boundary_point)
        % count = count + 1;
         x1 = boundary_point(i,1); x2 = x1 * x1; x3 = x1 * x2;
         y1 = boundary_point(i,2); y2 = y1 * y1; y3 = y1 * y2; y4 = y3*y1;
@@ -134,7 +137,8 @@ while(index <= 2)
 
         b1 = x3 * y1 + b1;
     end
-   % a55 = count;
+    
+    % a55 = count;
     K = 100; %比例系数
     a51 = a51/K; a52 = a52/K; a53 = a53/K; a54 = a54/K; a55 = a55/K; b5 = b5/K;
     a41 = a41/K; a42 = a42/K; b4 = b4/K;
@@ -173,23 +177,25 @@ while(index <= 2)
     e_b(1, index) = sqrt(nom/(delta* ( (1-B)*s -(B+1))));
     theta(1, index) = 0.5 * acot((B-1)/A);
     
-    if (index == 1)
-        plot(x0(1,index), y0(1,index),'x', 'LineWidth', 2, 'Color', 'r');
-    end
-    if (index == 2)
-        plot(x0(1,index), y0(1,index),'x', 'LineWidth', 2, 'Color', 'g');
-    end
+%     if (index == 1)
+%         plot(x0(1,index), y0(1,index),'x', 'LineWidth', 2, 'Color', 'r');
+%     end
+%     if (index == 2)
+%         plot(x0(1,index), y0(1,index),'x', 'LineWidth', 2, 'Color', 'g');
+%     end
 %    plot(x0(1,index), y0(1,index),'x', 'LineWidth', 2, 'Color', 'r');
     PlotEllipse(x0(1,index), -y0(1,index), e_a(1,index), e_b(1,index), -theta(1,index));
     
     index = index + 1;
 end
 
+
 %% 求解两椭圆的切线方程和切点
 C1 = [1 answer(1,1)/2 answer(3,1)/2; answer(1,1)/2 answer(2,1) answer(4,1)/2; answer(3,1)/2 answer(4,1)/2 answer(5,1)];
 C2 = [1 answer(1,2)/2 answer(3,2)/2; answer(1,2)/2 answer(2,2) answer(4,2)/2; answer(3,2)/2 answer(4,2)/2 answer(5,2)];
 C1star = inv(C1);
 C2star = inv(C2);
+
 
 % 生成滚动点
 % 确定空心圆最上面和最下面的两个滚动点（也是切点）
@@ -207,13 +213,13 @@ else
 end
 
 var_count = 0;
-for i = down_point:0.02:down_point+1-0.02
+for i = down_point:0.01:down_point+1-0.02
         var_count = var_count + 1;
         rolling_point(var_count,2) = i;   % 滚动点的y坐标
         rolling_point(var_count,1) = (sqrt((A*i+C).^2 - 4*(i.^2*B + i*D + E))-(A*i+C))/2;  %右侧滚动点的x坐标
         rolling_point(var_count,3) = (-sqrt((A*i+C).^2 - 4*(i.^2*B + i*D + E))-(A*i+C))/2; %左侧滚动点的x坐标
 end
-for i = down_point+1:0.2:up_point-1
+for i = down_point+1:0.1:up_point-1
         var_count = var_count + 1;
         rolling_point(var_count,2) = i;   % 滚动点的y坐标
         rolling_point(var_count,1) = (sqrt((A*i+C).^2 - 4*(i.^2*B + i*D + E))-(A*i+C))/2;  %右侧滚动点的x坐标
