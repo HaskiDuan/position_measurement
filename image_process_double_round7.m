@@ -1,37 +1,25 @@
 clear all;
 clc;
 close all;
-tic
+dbstop if error
 
+tic
 %%外轮廓大圆与内部空心小圆相比较
 k0 = (93/28)^2;
 %% 把原始图像读入到Matlab中
-I=imread('T72.jpg');
+I=imread('T73.jpg');
 %I=imread('C:\Users\lenovo\Desktop\着陆信标\object_T.jpg');
 %% 使用自编的算法把原始的彩色图像转换成灰度图像
 [rows,columns,colors]=size(I);
-gray=zeros(rows,columns,'uint16');
-k=1;
-for i=1:1:rows
-    for j=1:1:columns
-%      gray(i,j) = I(i,j,k)*0.3 + I(i,j,k+1)*0.59 + I(i,j,k+2)*0.11;
-     gray(i,j) = (I(i,j,k) + I(i,j,k+1) + I(i,j,k+2))/3;
-    end
-end
+gray=rgb2gray(I);
 figure;
 image(gray);hold off
 %% 使用自编Otsu函数确定阈值，并将原始灰度图像转换成二值图像
-T0=Otsu(gray);
-for i=1:1:rows
-    for j=1:1:columns
-        if gray(i,j) >= T0;
-            gray(i,j) = 1;
-        else
-            gray(i,j) = 0;
-        end
-    end
-end
- 
+T0 = graythresh(gray);
+gray = im2bw(gray,T0);
+imshow(gray);
+%白色是1 黑色是0
+
 %% 使用自编CclByTwopass_NEW2函数对二值图像进行连通域标记
 [gray,array,nlabel,label_count]=CclByTwopass_NEW2(gray);
 figure;
@@ -59,19 +47,14 @@ for i = 1:1:rows
             gray1(i, j) = 1;
         elseif (gray(i, j) == target2_ID)
             gray2(i, j) = 1;
-            columns_num = columns_num + j;    % 计算形心
        end
     end
 end
-for j = 1:1:columns
-    for i = 1:1:rows
-        if(gray2(i, j) == 1)
-            rows_num = rows_num + i;   
-        end
-    end
-end
-target_rows = rows_num / target2_pixelnum;   % 形心的x坐标
-target_columns = columns_num / target2_pixelnum;   % 形心的y坐标
+
+[x,y]=find(gray==target2_ID);
+target_rows = min(x)+(max(x)-min(x))/2;   % 形心的x坐标
+target_columns =min(y)+(max(y)-min(y))/2;   % 形心的y坐标
+
 %条件2：用于判断参考靶标是否完整地出现在图像平面，并且对1号和2号靶标的区分是正确的
 local_gray_average = 0;     %以形心为中心的3x3小邻域内的点的平均灰度值
 for i = -1:1:1
@@ -86,11 +69,10 @@ end
 % 把带白点的圆的中心白点抹掉
 k = 7;
 width = round(sqrt(double(target2_pixelnum/(k-1))))/2;
-for i = -width:1:width
-    for j = -width:1:width
-        gray2(target_rows - i, target_columns - j) = 1;
-    end
-end
+gray2((target_rows - width):(target_rows + width), (target_columns - width):(target_columns + width)) = 1;
+%figure; imshow(gray2);
+%caxis([0,1]);
+
 %% 边缘检测
 gray1 = edge(gray1,'prewitt');
 gray2 = edge(gray2,'prewitt');
@@ -419,6 +401,7 @@ feature_point7 = [tangent_point(feature_point7_ID,1), tangent_point(feature_poin
 %plot(feature_point8(1,1), feature_point8(1,2),'^', 'LineWidth', 2, 'Color', 'y');
 
 %% 对其余13个特征点进行提取并标号(标号范围：9 ~ 21) 
+%采用的是两点式的直线表示法
 %过特征点1和特征点4的直线line1_4
 line1_4 = [feature_point1(1,2) - feature_point4(1,2), feature_point4(1,1) - feature_point1(1,1), feature_point1(1,1)*feature_point4(1,2) - feature_point4(1,1)*feature_point1(1,2)];
 %过特征点5和特征点8的直线line5_8
