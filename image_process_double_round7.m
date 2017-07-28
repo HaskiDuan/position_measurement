@@ -41,15 +41,12 @@ target_rows = 0;       % 计算形心
 target_columns = 0;    % 计算形心
 rows_num = 0;          % 计算形心
 columns_num = 0;       % 计算形心
-for i = 1:1:rows
-    for j = 1:1:columns
-        if ( gray(i, j) == target1_ID )
-            gray1(i, j) = 1;
-        elseif (gray(i, j) == target2_ID)
-            gray2(i, j) = 1;
-       end
-    end
-end
+
+I=find(gray == target1_ID); %%找到A中所有大于5的元素
+gray1(I)=1;                 %%将A中所有大于5的元素替换为0
+I=find(gray == target2_ID); %%找到A中所有大于5的元素
+gray2(I)=1;                 %%将A中所有大于5的元素替换为0
+
 
 [x,y]=find(gray==target2_ID);
 target_rows = min(x)+(max(x)-min(x))/2;   % 形心的x坐标
